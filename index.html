@@ -368,6 +368,14 @@ html.is-loading,html.is-loading body{overflow:hidden}
   *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
 }
 </style>
+<!-- Google Analytics 4 -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-9NWPR25MY9"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-9NWPR25MY9');
+</script>
 </head>
 <body>
 <script>document.documentElement.classList.add("is-loading");</script>
@@ -764,5 +772,128 @@ const DATA={"cats":[{"id":"clasicas","name":"Clásicas y Selfies","icon":"i-came
 })();
 </script>
 
+<!-- Seguimiento de clics y acciones del catálogo (Google Analytics 4) -->
+<script>
+(function(){
+  if(typeof gtag!=="function") return;
+  var ev=function(n,p){try{gtag("event",n,p||{})}catch(e){}};
+  var cut=function(s,n){return String(s==null?"":s).slice(0,n||100)};
+  var $=function(s){return document.querySelector(s)};
+  var byId={},byCode={},cats={};
+  try{
+    DATA.cats.forEach(function(c){cats[c.id]=c.name});
+    DATA.items.forEach(function(it){byId[it.id]=it;byCode[it.code]=it});
+  }catch(e){}
+  var catOf=function(it){return it?cats[it.cat]||"":""};
+  var prod=function(it){return it?{producto:cut(it.name),codigo:cut(it.code),categoria:cut(catOf(it))}:{}};
+  var gaItem=function(it){return {item_id:cut(it.code),item_name:cut(it.name),item_category:cut(catOf(it))}};
+  var savedList=function(){try{return JSON.parse(localStorage.getItem("sosa-list"))||[]}catch(e){return []}};
+
+  /* en qué parte de la página ocurrió el clic */
+  function zona(el){
+    if(el.closest("#lb")) return "visor_producto";
+    if(el.closest("#drawer")) return "mi_lista";
+    if(el.closest(".card")) return "tarjeta_catalogo";
+    if(el.closest(".topbar")) return "barra_superior";
+    if(el.closest(".fabs")) return "boton_flotante";
+    if(el.closest("#inicio")) return "portada";
+    if(el.closest("#catalogo")) return "catalogo";
+    if(el.closest("#como-pedir")) return "como_pedir";
+    if(el.closest("#contacto")) return "contacto";
+    if(el.closest("footer")) return "pie";
+    return "otro";
+  }
+  /* producto relacionado con el elemento tocado */
+  function productoDe(el){
+    var card=el.closest(".card");
+    if(card){var o=card.querySelector("[data-open]"); if(o) return byId[+o.dataset.open]}
+    if(el.closest("#lb")){var c=$("#lb .lb-code"); if(c) return byCode[c.textContent.replace(/^\s*C[oó]digo\s*/i,"").trim()]}
+    var a=el.closest("[data-add]"); if(a) return byId[+a.dataset.add];
+    return null;
+  }
+
+  document.addEventListener("click",function(e){
+    var t=e.target; if(!t.closest) return;
+
+    /* WhatsApp */
+    var wa=t.closest('a[href*="wa.me"]');
+    if(wa){
+      var z=zona(wa), it=productoDe(wa), p={zona:z};
+      if(z==="mi_lista"){p.tipo="lista"; p.cantidad=savedList().length}
+      else if(it){p.tipo="producto"; Object.assign(p,prod(it))}
+      else p.tipo="general";
+      ev("clic_whatsapp",p); return;
+    }
+    /* Instagram */
+    var ig=t.closest('a[href*="instagram.com"]');
+    if(ig){ev("clic_instagram",{zona:zona(ig)}); return}
+
+    /* abrir un producto en grande */
+    var op=t.closest("[data-open]");
+    if(op){var it2=byId[+op.dataset.open]; if(it2) ev("view_item",{items:[gaItem(it2)],zona:zona(op)}); return}
+
+    /* agregar o quitar de la lista */
+    var ad=t.closest("[data-add]");
+    if(ad){
+      var it3=byId[+ad.dataset.add]; if(!it3) return;
+      var estaba=ad.getAttribute("aria-pressed")==="true";
+      if(estaba) ev("quitar_de_lista",Object.assign({zona:zona(ad)},prod(it3)));
+      else ev("add_to_wishlist",{items:[gaItem(it3)],zona:zona(ad)});
+      return;
+    }
+    /* filtros de categoría */
+    var ct=t.closest("[data-cat]");
+    if(ct){ev("filtro_categoria",{categoria:cut(cats[ct.dataset.cat]||"Todo el catálogo"),zona:zona(ct)}); return}
+
+    /* menú y botones que llevan a una sección */
+    var go=t.closest("[data-go]");
+    if(go){ev("ir_a_seccion",{seccion:cut(go.dataset.go),zona:zona(go)}); return}
+
+    /* visor */
+    if(t.closest("#lb [data-nav]")){ev("visor_navegar",{zona:"visor_producto"}); return}
+    if(t.closest("#lb [data-ph]")){ev("visor_ver_foto",{zona:"visor_producto"}); return}
+
+    /* lista, tema, teléfono, volver arriba */
+    if(t.closest("#listBtn")){ev("abrir_lista",{cantidad:savedList().length}); return}
+    if(t.closest("#clearList")){ev("vaciar_lista"); return}
+    if(t.closest("#themeBtn")){ev("cambiar_tema"); return}
+    if(t.closest("#copyBtn")){ev("copiar_telefono",{zona:zona(t)}); return}
+    if(t.closest("#toTop")){ev("volver_arriba"); return}
+  },true);
+
+  /* búsquedas */
+  var q=$("#q"), qt, last="";
+  if(q) q.addEventListener("input",function(){
+    clearTimeout(qt);
+    qt=setTimeout(function(){
+      var v=q.value.trim(); if(v.length<2||v===last) return; last=v;
+      var n=document.querySelectorAll("#results .card").length;
+      ev("search",{search_term:cut(v,60),resultados:n});
+      if(!n) ev("busqueda_sin_resultados",{search_term:cut(v,60)});
+    },1500);
+  });
+
+  /* secciones vistas */
+  if("IntersectionObserver" in window){
+    var vistas={};
+    var io=new IntersectionObserver(function(es){
+      es.forEach(function(x){
+        if(x.isIntersecting&&!vistas[x.target.id]){vistas[x.target.id]=1; ev("ver_seccion",{seccion:x.target.id})}
+      });
+    },{threshold:.35});
+    ["inicio","catalogo","como-pedir","contacto"].forEach(function(id){var s=document.getElementById(id); if(s) io.observe(s)});
+  }
+
+  /* hasta dónde bajan: 25, 50, 75 y 100 % */
+  var marcas={25:0,50:0,75:0,100:0}, tick=false;
+  function medir(){
+    tick=false;
+    var h=document.documentElement.scrollHeight-innerHeight; if(h<=0) return;
+    var pct=Math.round(scrollY/h*100);
+    [25,50,75,100].forEach(function(m){ if(!marcas[m]&&pct>=m-(m===100?2:0)){marcas[m]=1; ev("scroll_profundidad",{porcentaje:m})} });
+  }
+  addEventListener("scroll",function(){if(!tick){tick=true;setTimeout(medir,250)}},{passive:true});
+})();
+</script>
 </body>
 </html>
