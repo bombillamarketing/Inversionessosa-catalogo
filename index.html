@@ -789,6 +789,25 @@ const DATA={"cats":[{"id":"clasicas","name":"Clásicas y Selfies","icon":"i-came
 })();
 </script>
 
+<!-- Meta Pixel: evento Contacto en cada clic a WhatsApp -->
+<script>
+(function(){
+  document.addEventListener("click",function(e){
+    var t=e.target; if(!t||!t.closest) return;
+    var a=t.closest('a[href*="wa.me"]'); if(!a) return;
+    if(typeof fbq!=="function") return;
+    var origen=a.closest("#drawer")?"lista":(a.closest(".card")||a.closest("#lb"))?"producto":"general";
+    var p={content_category:origen};
+    try{
+      var txt=decodeURIComponent(a.getAttribute("href")||"");
+      var cods=txt.match(/[A-Z]{2}-\d{3}-\d+/g);
+      if(cods&&cods.length){p.content_ids=cods; p.content_type="product"; p.num_items=cods.length;}
+    }catch(err){}
+    try{fbq("track","Contact",p);}catch(err){}
+  },true);
+})();
+</script>
+
 <!-- Seguimiento de clics y acciones del catálogo (Google Analytics 4) -->
 <script>
 (function(){
